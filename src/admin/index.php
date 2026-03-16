@@ -111,7 +111,10 @@ $lijsten = $pdo->query('SELECT w.*, COUNT(wo.id) AS aantal_woorden
             <!-- Overzicht woordenlijsten -->
             <div class="col-lg-8">
                 <div class="card p-4">
-                    <h5 class="fw-bold mb-3">Woordenlijsten</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Woordenlijsten</h5>
+                        <a href="importeer.php" class="btn btn-sm btn-outline-primary">CSV importeren</a>
+                    </div>
 
                     <?php if (empty($lijsten)): ?>
                         <p class="text-muted">Nog geen woordenlijsten.</p>

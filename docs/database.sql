@@ -47,7 +47,7 @@ CREATE TABLE resultaten (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     woordenlijst_id INT NOT NULL,
-    score INT NOT NULL,
+    score DECIMAL(4,1) NOT NULL,
     totaal INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

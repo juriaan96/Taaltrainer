@@ -53,18 +53,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['antwoord']) && $quiz['fase'] === 'vraag') {
         $huidig  = $quiz['woorden'][$quiz['index']];
         $antwoord = trim($_POST['antwoord']);
-        $correct  = strtolower($antwoord) === strtolower(trim($huidig['vertaling']));
+        $antwoord_lc = strtolower($antwoord);
+        $correct_lc  = strtolower(trim($huidig['vertaling']));
 
-        if ($correct) {
-            $quiz['score']++;
+        if ($antwoord_lc === $correct_lc) {
+            $quiz['score'] += 1;
             $quiz['feedback'] = 'correct';
         } else {
+            similar_text($antwoord_lc, $correct_lc, $gelijkenis);
+            if ($gelijkenis >= 75) {
+                $quiz['score'] += 0.5;
+                $quiz['feedback'] = 'bijna';
+            } else {
+                $quiz['feedback'] = 'fout';
+            }
             $quiz['fouten'][] = [
                 'woord'   => $huidig['woord'],
                 'gegeven' => $antwoord,
                 'correct' => $huidig['vertaling'],
+                'bijna'   => $gelijkenis >= 75,
             ];
-            $quiz['feedback'] = 'fout';
         }
         $quiz['fase'] = 'feedback';
 
@@ -115,9 +123,12 @@ $voortgang = round(($quiz['index'] / $totaal) * 100);
         .btn-check-primary { background-color: #2563EB; border-color: #2563EB; color: white; }
         .btn-check-primary:hover { background-color: #1D4ED8; }
         .feedback-correct { background-color: #F0FDF4; border: 2px solid #16A34A; border-radius: 10px; padding: 1rem; }
+        .feedback-bijna   { background-color: #FFFBEB; border: 2px solid #D97706; border-radius: 10px; padding: 1rem; }
         .feedback-fout    { background-color: #FEF2F2; border: 2px solid #DC2626; border-radius: 10px; padding: 1rem; }
         .btn-correct { background-color: #16A34A; border-color: #16A34A; color: white; }
         .btn-correct:hover { background-color: #15803D; }
+        .btn-bijna { background-color: #D97706; border-color: #D97706; color: white; }
+        .btn-bijna:hover { background-color: #B45309; }
         .btn-fout { background-color: #DC2626; border-color: #DC2626; color: white; }
         .btn-fout:hover { background-color: #B91C1C; }
     </style>
@@ -164,22 +175,29 @@ $voortgang = round(($quiz['index'] / $totaal) * 100);
             <?php else: ?>
 
                 <!-- Feedback -->
-                <div class="<?= $quiz['feedback'] === 'correct' ? 'feedback-correct' : 'feedback-fout' ?> text-center mb-4">
-                    <?php if ($quiz['feedback'] === 'correct'): ?>
-                        <div class="fw-bold text-success fs-5">Goed!</div>
+                <?php if ($quiz['feedback'] === 'correct'): ?>
+                    <div class="feedback-correct text-center mb-4">
+                        <div class="fw-bold text-success fs-5">Goed! +1 punt</div>
                         <div class="text-muted small mt-1"><?= htmlspecialchars($huidig['vertaling']) ?></div>
-                    <?php else: ?>
+                    </div>
+                <?php elseif ($quiz['feedback'] === 'bijna'): ?>
+                    <div class="feedback-bijna text-center mb-4">
+                        <div class="fw-bold fs-5" style="color:#D97706">Bijna goed! +½ punt</div>
+                        <div class="text-muted small mt-1">Juiste antwoord: <strong><?= htmlspecialchars($huidig['vertaling']) ?></strong></div>
+                    </div>
+                <?php else: ?>
+                    <div class="feedback-fout text-center mb-4">
                         <div class="fw-bold text-danger fs-5">Fout</div>
                         <div class="text-muted small mt-1">Juiste antwoord: <strong><?= htmlspecialchars($huidig['vertaling']) ?></strong></div>
-                    <?php endif; ?>
-                </div>
+                    </div>
+                <?php endif; ?>
 
                 <form method="POST" action="">
                     <button
                         type="submit"
                         name="volgende"
                         value="1"
-                        class="btn <?= $quiz['feedback'] === 'correct' ? 'btn-correct' : 'btn-fout' ?> btn-lg w-100"
+                        class="btn <?= $quiz['feedback'] === 'correct' ? 'btn-correct' : ($quiz['feedback'] === 'bijna' ? 'btn-bijna' : 'btn-fout') ?> btn-lg w-100"
                         autofocus
                     >
                         <?= $quiz['index'] + 1 >= $totaal ? 'Bekijk resultaat' : 'Volgende →' ?>

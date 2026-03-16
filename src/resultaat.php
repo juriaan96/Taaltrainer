@@ -68,7 +68,7 @@ if ($percentage >= 80) {
             <div class="score-sub mb-1"><?= $percentage ?>% goed</div>
             <div class="fw-semibold mb-4"><?= $boodschap ?></div>
 
-            <!-- Foute woorden -->
+            <!-- Foute / bijna goede woorden -->
             <?php if (!empty($fouten)): ?>
                 <div class="text-start mb-4">
                     <div class="fw-semibold text-muted small text-uppercase mb-2">Nog te leren</div>
@@ -77,7 +77,11 @@ if ($percentage >= 80) {
                             <span class="fw-semibold"><?= htmlspecialchars($fout['woord']) ?></span>
                             <span class="text-muted mx-2">→</span>
                             <span class="text-success fw-semibold"><?= htmlspecialchars($fout['correct']) ?></span>
-                            <span class="ms-auto text-danger small"><?= htmlspecialchars($fout['gegeven']) ?> ✗</span>
+                            <?php if (!empty($fout['bijna'])): ?>
+                                <span class="ms-auto small" style="color:#D97706"><?= htmlspecialchars($fout['gegeven']) ?> ≈ +½</span>
+                            <?php else: ?>
+                                <span class="ms-auto text-danger small"><?= htmlspecialchars($fout['gegeven']) ?> ✗</span>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
