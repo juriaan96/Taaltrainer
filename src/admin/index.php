@@ -70,6 +70,7 @@ $lijsten = $pdo->query('SELECT w.*, COUNT(wo.id) AS aantal_woorden
         <span class="navbar-brand fw-bold">Taaltrainer – Beheer</span>
         <div class="d-flex gap-2">
             <a href="../index.php" class="btn btn-sm btn-outline-light">← App</a>
+            <a href="scores.php" class="btn btn-sm btn-outline-light">Scores</a>
             <a href="../logout.php" class="btn btn-sm btn-outline-light">Uitloggen</a>
         </div>
     </nav>

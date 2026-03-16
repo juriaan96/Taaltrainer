@@ -40,6 +40,7 @@ $woordenlijsten = $stmt->fetchAll();
             <?php if ($_SESSION['role'] === 'docent'): ?>
                 <a href="admin/index.php" class="btn btn-sm btn-outline-light">Beheer</a>
             <?php endif; ?>
+            <a href="scores.php" class="btn btn-sm btn-outline-light">Mijn scores</a>
             <a href="logout.php" class="btn btn-sm btn-outline-light">Uitloggen</a>
         </div>
     </nav>

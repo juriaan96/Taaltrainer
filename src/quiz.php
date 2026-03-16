@@ -24,17 +24,28 @@ if (isset($_GET['lijst']) && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmt2->execute([$lijst_id]);
     $lijst = $stmt2->fetch();
 
+    // Statistieken ophalen voor gewogen volgorde (foute woorden eerst)
+    $stat_stmt = $pdo->prepare('SELECT woord_id, correct, fout FROM woord_statistieken WHERE user_id = ?');
+    $stat_stmt->execute([$_SESSION['user_id']]);
+    $stats = array_column($stat_stmt->fetchAll(), null, 'woord_id');
+
     shuffle($woorden);
+    usort($woorden, function($a, $b) use ($stats) {
+        $gewicht_a = isset($stats[$a['id']]) ? ($stats[$a['id']]['fout'] - $stats[$a['id']]['correct']) : 0;
+        $gewicht_b = isset($stats[$b['id']]) ? ($stats[$b['id']]['fout'] - $stats[$b['id']]['correct']) : 0;
+        return $gewicht_b <=> $gewicht_a;
+    });
 
     $_SESSION['quiz'] = [
-        'lijst_id'   => $lijst_id,
-        'lijst_naam' => $lijst['naam'],
-        'woorden'    => $woorden,
-        'index'      => 0,
-        'score'      => 0,
-        'fouten'     => [],
-        'fase'       => 'vraag',
-        'feedback'   => null,
+        'lijst_id'        => $lijst_id,
+        'lijst_naam'      => $lijst['naam'],
+        'woorden'         => $woorden,
+        'index'           => 0,
+        'score'           => 0,
+        'fouten'          => [],
+        'fase'            => 'vraag',
+        'feedback'        => null,
+        'woord_resultaten'=> [],
     ];
 }
 
@@ -56,9 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $antwoord_lc = strtolower($antwoord);
         $correct_lc  = strtolower(trim($huidig['vertaling']));
 
-        if ($antwoord_lc === $correct_lc) {
+        $woord_lc = strtolower(trim($huidig['woord']));
+
+        if ($antwoord_lc === $correct_lc && $antwoord_lc !== $woord_lc) {
             $quiz['score'] += 1;
             $quiz['feedback'] = 'correct';
+            $quiz['woord_resultaten'][$huidig['id']] = ['correct' => 1, 'fout' => 0];
         } else {
             similar_text($antwoord_lc, $correct_lc, $gelijkenis);
             if ($gelijkenis >= 75) {
@@ -73,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'correct' => $huidig['vertaling'],
                 'bijna'   => $gelijkenis >= 75,
             ];
+            $quiz['woord_resultaten'][$huidig['id']] = ['correct' => 0, 'fout' => 1];
         }
         $quiz['fase'] = 'feedback';
 
@@ -85,6 +100,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($quiz['index'] >= $totaal) {
             $stmt = $pdo->prepare('INSERT INTO resultaten (user_id, woordenlijst_id, score, totaal) VALUES (?, ?, ?, ?)');
             $stmt->execute([$_SESSION['user_id'], $quiz['lijst_id'], $quiz['score'], $totaal]);
+
+            // Woordstatistieken opslaan voor spaced repetition
+            $stat_stmt = $pdo->prepare('INSERT INTO woord_statistieken (user_id, woord_id, correct, fout)
+                                        VALUES (?, ?, ?, ?)
+                                        ON DUPLICATE KEY UPDATE
+                                            correct = correct + VALUES(correct),
+                                            fout    = fout    + VALUES(fout)');
+            foreach ($quiz['woord_resultaten'] as $woord_id => $res) {
+                $stat_stmt->execute([$_SESSION['user_id'], $woord_id, $res['correct'], $res['fout']]);
+            }
 
             $_SESSION['resultaat'] = [
                 'score'      => $quiz['score'],

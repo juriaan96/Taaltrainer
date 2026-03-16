@@ -55,6 +55,19 @@ CREATE TABLE resultaten (
 );
 
 -- =============================================
+-- Tabel: woord_statistieken
+-- =============================================
+CREATE TABLE woord_statistieken (
+    user_id  INT NOT NULL,
+    woord_id INT NOT NULL,
+    correct  INT NOT NULL DEFAULT 0,
+    fout     INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, woord_id),
+    FOREIGN KEY (user_id)  REFERENCES users(id)   ON DELETE CASCADE,
+    FOREIGN KEY (woord_id) REFERENCES woorden(id) ON DELETE CASCADE
+);
+
+-- =============================================
 -- Testdata
 -- =============================================
 
