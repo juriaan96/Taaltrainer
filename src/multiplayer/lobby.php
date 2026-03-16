@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $max_rondes = min(10, max(3, (int)($_POST['max_rondes'] ?? 5)));
 
         // Genoeg woorden?
-        $stmt = $pdo->prepare('SELECT id FROM woorden WHERE woordenlijst_id = ? ORDER BY RAND() LIMIT ?');
-        $stmt->execute([$lijst_id, $max_rondes]);
+        $stmt = $pdo->prepare("SELECT id FROM woorden WHERE woordenlijst_id = ? ORDER BY RAND() LIMIT $max_rondes");
+        $stmt->execute([$lijst_id]);
         $woorden = $stmt->fetchAll();
 
         if (count($woorden) < $max_rondes) {
