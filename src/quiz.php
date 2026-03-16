@@ -83,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'totaal'     => $totaal,
                 'fouten'     => $quiz['fouten'],
                 'lijst_naam' => $quiz['lijst_naam'],
+                'lijst_id'   => $quiz['lijst_id'],
             ];
             unset($_SESSION['quiz']);
 
