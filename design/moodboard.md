@@ -8,10 +8,10 @@
 |-------|-----|---------|
 | Primair blauw | `#2563EB` | Knoppen, titels |
 | Lichtgrijs | `#F3F4F6` | Achtergrond |
-| Wit | `#FFFFFF` | Kaarten / invoervelden |
+| Wit | `#FFFFFF` | Witte achtergrond |
+| Donkergrijs | `#1F2937` | Kaarten / invoervelden + tekst |
 | Groen | `#16A34A` | Feedback goed |
 | Rood | `#DC2626` | Feedback fout |
-| Donkergrijs | `#1F2937` | Tekst |
 
 ### Typografie
 
