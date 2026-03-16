@@ -46,8 +46,15 @@ $woordenlijsten = $stmt->fetchAll();
     </nav>
 
     <div class="container pb-5">
-        <h1 class="fs-4 fw-bold text-dark mb-1">Kies een woordenlijst</h1>
-        <p class="text-muted mb-4">Selecteer een lijst om mee te oefenen.</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="fs-4 fw-bold text-dark mb-0">Kies een woordenlijst</h1>
+                <p class="text-muted mb-0 small">Selecteer een lijst om mee te oefenen.</p>
+            </div>
+            <a href="multiplayer/lobby.php" class="btn btn-outline-primary">
+                ⚔️ Multiplayer
+            </a>
+        </div>
 
         <?php if (empty($woordenlijsten)): ?>
             <div class="alert alert-info">Er zijn nog geen woordenlijsten beschikbaar.</div>
