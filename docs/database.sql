@@ -60,8 +60,8 @@ CREATE TABLE resultaten (
 
 -- Gebruikers (wachtwoord voor beiden: 'welkom123')
 INSERT INTO users (username, password_hash, role) VALUES
-('docent', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'docent'),
-('leerling', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student');
+('docent', '$2y$10$pZ30K373HXfvAcF3opHYHuWRdEclVgKwBR6iaklXNs8CZ2Ez26iUO', 'docent'),
+('leerling', '$2y$10$pZ30K373HXfvAcF3opHYHuWRdEclVgKwBR6iaklXNs8CZ2Ez26iUO', 'student');
 
 -- Woordenlijst
 INSERT INTO woordenlijsten (naam, taal_van, taal_naar, created_by) VALUES
