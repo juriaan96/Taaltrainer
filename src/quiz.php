@@ -7,8 +7,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Quiz initialiseren bij eerste bezoek
-if (isset($_GET['lijst'])) {
+// Quiz initialiseren bij eerste bezoek (alleen bij GET, niet bij form submit)
+if (isset($_GET['lijst']) && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $lijst_id = (int)$_GET['lijst'];
 
     $stmt = $pdo->prepare('SELECT * FROM woorden WHERE woordenlijst_id = ?');
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['antwoord']) && $quiz['fase'] === 'vraag') {
         $huidig  = $quiz['woorden'][$quiz['index']];
         $antwoord = trim($_POST['antwoord']);
-        $correct  = strtolower($antwoord) === strtolower($huidig['vertaling']);
+        $correct  = strtolower($antwoord) === strtolower(trim($huidig['vertaling']));
 
         if ($correct) {
             $quiz['score']++;
