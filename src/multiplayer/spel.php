@@ -176,6 +176,7 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
     let tegAntwoordDetectedAt = null;
     let countdownInterval     = null;
     let vorigeEmoji   = null;
+    let woordZichtbaarOp      = 0;  // timestamp waarop het woord zichtbaar wordt na 3-2-1
 
     // ── Timeout (tegenstander al klaar, jij nog niet) ─────────────────────────
     async function tijdVoorbij() {
@@ -220,6 +221,9 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
         const fd = new FormData();
         fd.append('game', GAME_CODE);
         fd.append('antwoord', antwoord);
+        if (tegAntwoordDetectedAt) {
+            fd.append('teg_wacht_ms', Date.now() - tegAntwoordDetectedAt);
+        }
         try {
             const r    = await fetch('api.php?actie=antwoord', { method: 'POST', body: fd });
             const data = await r.json();
@@ -291,7 +295,7 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
                 setTimeout(() => { el.style.opacity = '0'; setTimeout(() => { el.textContent = ''; }, 300); }, 2000);
             }
 
-            // Nieuwe ronde → reset UI
+            // Nieuwe ronde → reset UI met countdown
             if (data.ronde !== huidigeRonde) {
                 huidigeRonde = data.ronde;
                 beantwoord   = false;
@@ -300,32 +304,49 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
                 countdownInterval = null;
                 vorigeEmoji = null;
 
-                document.getElementById('woord-display').textContent  = data.woord;
                 document.getElementById('feedback-vak').style.display = 'none';
                 document.getElementById('teg-status').textContent     = '';
+                document.getElementById('input-vak').style.display    = 'none';
+                document.getElementById('keuze-vak').style.display    = 'none';
 
-                if (huidigeModus === 'meerkeuze') {
-                    document.getElementById('input-vak').style.display  = 'none';
-                    document.getElementById('keuze-vak').style.display  = 'grid';
-                    vulKeuzeKnoppen(data.opties ?? []);
-                } else {
-                    document.getElementById('input-vak').style.display  = 'block';
-                    document.getElementById('keuze-vak').style.display  = 'none';
-                    document.getElementById('antwoord-input').value     = '';
-                    document.getElementById('controleer-btn').disabled  = false;
-                    setTimeout(() => document.getElementById('antwoord-input').focus(), 50);
-                }
+                // Countdown zodat beide spelers tegelijk starten
+                let tick = 3;
+                woordZichtbaarOp = Date.now() + 3000;
+                const woordEl = document.getElementById('woord-display');
+                woordEl.textContent = tick;
+                const cdInterval = setInterval(() => {
+                    tick--;
+                    if (tick > 0) {
+                        woordEl.textContent = tick;
+                    } else {
+                        clearInterval(cdInterval);
+                        woordZichtbaarOp = Date.now();
+                        woordEl.textContent = data.woord;
+                        if (huidigeModus === 'meerkeuze') {
+                            document.getElementById('keuze-vak').style.display = 'grid';
+                            vulKeuzeKnoppen(data.opties ?? []);
+                        } else {
+                            document.getElementById('input-vak').style.display = 'block';
+                            document.getElementById('antwoord-input').value    = '';
+                            document.getElementById('controleer-btn').disabled = false;
+                            setTimeout(() => document.getElementById('antwoord-input').focus(), 50);
+                        }
+                    }
+                }, 1000);
             }
 
             // Tegenstander-countdown
             const tegStatus = document.getElementById('teg-status');
             if (data.tegenstander_beantwoord && !data.jij_beantwoord) {
-                if (!tegAntwoordDetectedAt) {
+                if (!tegAntwoordDetectedAt && Date.now() >= woordZichtbaarOp) {
+                    // Timer start pas als het woord zichtbaar is (na 3-2-1 countdown)
                     tegAntwoordDetectedAt = Date.now();
                     clearInterval(countdownInterval);
                     countdownInterval = setInterval(() => {
-                        const sec = Math.max(0, 3 - Math.floor((Date.now() - tegAntwoordDetectedAt) / 1000));
-                        tegStatus.textContent = '⚡ Tegenstander heeft geantwoord! Nog ' + sec + 's';
+                        const elapsed = Math.floor((Date.now() - tegAntwoordDetectedAt) / 1000);
+                        const sec     = Math.max(0, 3 - elapsed);
+                        const punten  = Math.max(0, 1.0 - elapsed * 0.2).toFixed(1);
+                        tegStatus.textContent = `⚡ Tegenstander klaar! Nog ${sec}s — nog ${punten} pt bij goed`;
                         if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; tijdVoorbij(); }
                     }, 100);
                 }
@@ -394,7 +415,7 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
     }
 
     document.addEventListener('keydown', e => { if (e.key === 'Enter') stuurAntwoord(); });
-    setInterval(pollStatus, 800);
+    setInterval(pollStatus, 300);
     pollStatus();
     </script>
 </body>

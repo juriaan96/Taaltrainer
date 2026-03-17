@@ -32,16 +32,18 @@ function advanceerRondeAlsKlaar(PDO $pdo, array $game): void {
         $klaar = true;
     } elseif (count($ants) === 1) {
         $verstreken = (new DateTime())->getTimestamp() - (new DateTime($ants[0]['ingediend_op']))->getTimestamp();
-        if ($verstreken >= 3) $klaar = true;
+        if ($verstreken >= 8) $klaar = true;  // 8s wachten zodat trage verbindingen ook tijd hebben
     }
 
     if ($klaar) {
-        $s1_delta = 0; $s2_delta = 0;
-        $correcten = array_filter($ants, fn($a) => $a['correct']);
-        if (!empty($correcten)) {
-            $winnaar_ant = reset($correcten);
-            if ($winnaar_ant['user_id'] == $game['speler1_id']) $s1_delta = 1;
-            else                                                  $s2_delta = 1;
+        // Elke correcte speler scoort eigen punten (1.0 normaal, minder als tegenstander al klaar was)
+        $s1_delta = 0.0; $s2_delta = 0.0;
+        foreach ($ants as $a) {
+            if ($a['correct']) {
+                $p = isset($a['punten']) ? (float)$a['punten'] : 1.0;
+                if ($a['user_id'] == $game['speler1_id']) $s1_delta = $p;
+                else                                       $s2_delta = $p;
+            }
         }
         $nieuwe_ronde = $game['ronde'] + 1;
         if ($nieuwe_ronde > $game['max_rondes']) {
@@ -196,10 +198,22 @@ if ($actie === 'antwoord') {
     $correct = (int)(strtolower(trim($antwoord)) === strtolower(trim($woord['vertaling']))
                      && strtolower(trim($antwoord)) !== strtolower(trim($woord['woord'])));
 
+    // Punten berekenen: 1.0 normaal, -0.2 per seconde als tegenstander al antwoordde
+    $teg_wacht_ms = max(0, (int)($_POST['teg_wacht_ms'] ?? 0));
+    $punten = 1.0;
+    if ($correct && $teg_wacht_ms > 0) {
+        $elapsed_s = min(3, $teg_wacht_ms / 1000);
+        $punten = max(0.0, round(1.0 - floor($elapsed_s) * 0.2, 1));
+    }
+
     try {
+        $pdo->prepare('INSERT IGNORE INTO multiplayer_antwoorden (game_id, ronde, user_id, antwoord, correct, punten, ingediend_op)
+                       VALUES (?, ?, ?, ?, ?, ?, NOW())')->execute([$game['id'], $game['ronde'], $user_id, $antwoord, $correct, $punten]);
+    } catch (PDOException $e) {
+        // punten kolom bestaat nog niet – fallback
         $pdo->prepare('INSERT IGNORE INTO multiplayer_antwoorden (game_id, ronde, user_id, antwoord, correct, ingediend_op)
                        VALUES (?, ?, ?, ?, ?, NOW())')->execute([$game['id'], $game['ronde'], $user_id, $antwoord, $correct]);
-    } catch (Exception $e) {}
+    }
 
     advanceerRondeAlsKlaar($pdo, $game);
     $game = getGame($pdo, $code, $user_id);
