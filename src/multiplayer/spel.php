@@ -359,7 +359,7 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
     function vulKeuzeKnoppen(opties) {
         const vak = document.getElementById('keuze-vak');
         vak.innerHTML = opties.map(o =>
-            `<button class="btn btn-keuze w-100" onclick="stuurKeuze(${JSON.stringify(o)})">${escHtml(o)}</button>`
+            `<button class="btn btn-keuze w-100" data-optie="${o.replace(/"/g,'&quot;')}" onclick="stuurKeuze(this.dataset.optie)">${escHtml(o)}</button>`
         ).join('');
     }
 

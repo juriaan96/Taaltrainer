@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['genereer'])) {
                     <div>
                         <?php foreach (array_keys($categorieen) as $cat): ?>
                             <span class="cat-optie <?= ($formdata['cat'] ?? '') === $cat ? 'actief' : '' ?>"
-                                  onclick="kiesCat(this, <?= json_encode($cat) ?>)">
+                                  onclick="kiesCat(this, '<?= addslashes($cat) ?>')">
                                 <?= htmlspecialchars($cat) ?>
                             </span>
                         <?php endforeach; ?>
@@ -234,7 +234,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['genereer'])) {
                     </div>
                 </div>
 
-                <button type="submit" name="genereer" class="btn btn-primary fw-semibold w-100" id="gen-btn">
+                <input type="hidden" name="genereer" value="1">
+                <button type="submit" class="btn btn-primary fw-semibold w-100" id="gen-btn">
                     ✨ Genereer woordenlijst
                 </button>
             </form>

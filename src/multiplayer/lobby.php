@@ -4,8 +4,28 @@ require_once '../config.php';
 
 if (!isset($_SESSION['user_id'])) { header('Location: ../login.php'); exit; }
 
-$fout   = '';
+$fout    = '';
 $lijsten = $pdo->query('SELECT * FROM woordenlijsten ORDER BY naam ASC')->fetchAll();
+
+// Verlaten lobby's opruimen (wachten, ouder dan 30 minuten)
+$pdo->exec("DELETE FROM multiplayer_games WHERE status = 'wachten' AND created_at < NOW() - INTERVAL 30 MINUTE");
+
+// Open lobby's ophalen (wachten op speler 2, niet van jezelf)
+try {
+    $open_stmt = $pdo->prepare(
+        'SELECT g.code, g.max_rondes, g.modus, g.created_at,
+                u.username AS speler1_naam, w.naam AS lijst_naam
+         FROM multiplayer_games g
+         JOIN users u ON u.id = g.speler1_id
+         JOIN woordenlijsten w ON w.id = g.lijst_id
+         WHERE g.status = "wachten" AND g.speler1_id != ?
+         ORDER BY g.created_at DESC LIMIT 10'
+    );
+    $open_stmt->execute([$_SESSION['user_id']]);
+    $open_lobbies = $open_stmt->fetchAll();
+} catch (PDOException $e) {
+    $open_lobbies = [];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $actie = $_POST['actie'] ?? '';
@@ -26,8 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $code = strtoupper(substr(md5(uniqid()), 0, 6));
 
-            $pdo->prepare('INSERT INTO multiplayer_games (code, speler1_id, lijst_id, max_rondes, modus) VALUES (?,?,?,?,?)')
-                ->execute([$code, $_SESSION['user_id'], $lijst_id, $max_rondes, $modus]);
+            try {
+                $pdo->prepare('INSERT INTO multiplayer_games (code, speler1_id, lijst_id, max_rondes, modus) VALUES (?,?,?,?,?)')
+                    ->execute([$code, $_SESSION['user_id'], $lijst_id, $max_rondes, $modus]);
+            } catch (PDOException $e) {
+                // modus kolom bestaat nog niet — fallback zonder modus
+                $pdo->prepare('INSERT INTO multiplayer_games (code, speler1_id, lijst_id, max_rondes) VALUES (?,?,?,?)')
+                    ->execute([$code, $_SESSION['user_id'], $lijst_id, $max_rondes]);
+            }
             $game_id = $pdo->lastInsertId();
 
             $stmt = $pdo->prepare('INSERT INTO multiplayer_woorden (game_id, volgorde, woord_id) VALUES (?,?,?)');
@@ -142,6 +168,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+
+        <!-- Open lobby's -->
+        <?php if (!empty($open_lobbies)): ?>
+        <div class="mt-4">
+            <h5 class="fw-bold mb-3">Open spellen</h5>
+            <div class="card p-0 overflow-hidden">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Speler</th>
+                            <th>Woordenlijst</th>
+                            <th>Rondes</th>
+                            <th>Modus</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($open_lobbies as $lobby): ?>
+                        <tr>
+                            <td class="ps-3 fw-semibold"><?= htmlspecialchars($lobby['speler1_naam']) ?></td>
+                            <td><?= htmlspecialchars($lobby['lijst_naam']) ?></td>
+                            <td><?= (int)$lobby['max_rondes'] ?></td>
+                            <td>
+                                <?php if ($lobby['modus'] === 'meerkeuze'): ?>
+                                    <span class="badge bg-primary">Meerkeuze</span>
+                                <?php else: ?>
+                                    <span class="badge bg-secondary">Invullen</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-end pe-3">
+                                <form method="POST" class="d-inline">
+                                    <input type="hidden" name="actie" value="meedoen">
+                                    <input type="hidden" name="code" value="<?= htmlspecialchars($lobby['code']) ?>">
+                                    <button type="submit" class="btn btn-success btn-sm">Meedoen →</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+
     </div>
 </body>
 </html>

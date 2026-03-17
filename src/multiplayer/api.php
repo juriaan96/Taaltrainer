@@ -48,8 +48,15 @@ function advanceerRondeAlsKlaar(PDO $pdo, array $game): void {
             $pdo->prepare('UPDATE multiplayer_games SET status="klaar", score_speler1=score_speler1+?, score_speler2=score_speler2+? WHERE id=?')
                 ->execute([$s1_delta, $s2_delta, $game['id']]);
         } else {
-            $pdo->prepare('UPDATE multiplayer_games SET ronde=?, score_speler1=score_speler1+?, score_speler2=score_speler2+? WHERE id=?')
-                ->execute([$nieuwe_ronde, $s1_delta, $s2_delta, $game['id']]);
+            // Nieuwe ronde: reset scores delta + emoji reacties
+            try {
+                $pdo->prepare('UPDATE multiplayer_games SET ronde=?, score_speler1=score_speler1+?, score_speler2=score_speler2+?, emoji_speler1=NULL, emoji_speler2=NULL WHERE id=?')
+                    ->execute([$nieuwe_ronde, $s1_delta, $s2_delta, $game['id']]);
+            } catch (PDOException $e) {
+                // emoji kolommen bestaan nog niet – update zonder emoji reset
+                $pdo->prepare('UPDATE multiplayer_games SET ronde=?, score_speler1=score_speler1+?, score_speler2=score_speler2+? WHERE id=?')
+                    ->execute([$nieuwe_ronde, $s1_delta, $s2_delta, $game['id']]);
+            }
         }
     }
     $pdo->commit();
@@ -78,6 +85,7 @@ function spelStatus(PDO $pdo, array $game, int $user_id): array {
             'score_tegenstander' => $teg_score,
             'tegenstander_naam'  => $teg_naam,
             'winnaar'            => $winnaar,
+            'jij_is_speler1'     => $is1,
         ];
     }
 
@@ -121,6 +129,8 @@ function spelStatus(PDO $pdo, array $game, int $user_id): array {
         'tegenstander_beantwoord' => $teg_ant,
         'tegenstander_antwoord_op'=> $teg_antwoord_op,
         'modus'                   => $modus,
+        'jij_is_speler1'          => $is1,
+        'emoji_ontvangen'         => $is1 ? ($game['emoji_speler2'] ?? null) : ($game['emoji_speler1'] ?? null),
     ];
 
     // Meerkeuze: genereer 4 opties deterministisch (zelfde voor beide spelers)
@@ -301,6 +311,47 @@ if ($actie === 'klaar') {
     }
 
     echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── EMOJI REACTIE ─────────────────────────────────────────────────────────────
+if ($actie === 'emoji') {
+    $emoji = $_POST['emoji'] ?? '';
+    if (!in_array($emoji, ['👍','😅','🎉','😤'])) { echo json_encode(['ok'=>false]); exit; }
+    $game = getGame($pdo, $code, $user_id);
+    if (!$game) { echo json_encode(['ok'=>false]); exit; }
+    $veld = ($game['speler1_id'] == $user_id) ? 'emoji_speler1' : 'emoji_speler2';
+    try {
+        $pdo->prepare("UPDATE multiplayer_games SET {$veld} = ? WHERE id = ?")
+            ->execute([$emoji, $game['id']]);
+    } catch (PDOException $e) {}
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── REMATCH ────────────────────────────────────────────────────────────────────
+if ($actie === 'rematch') {
+    $game = getGame($pdo, $code, $user_id);
+    if (!$game || $game['status'] !== 'klaar' || $game['speler1_id'] != $user_id) {
+        echo json_encode(['fout' => 'Alleen speler 1 kan een rematch starten na afloop']); exit;
+    }
+    $modus = $game['modus'] ?? 'invullen';
+    $stmt = $pdo->prepare("SELECT id FROM woorden WHERE woordenlijst_id = ? ORDER BY RAND() LIMIT " . (int)$game['max_rondes']);
+    $stmt->execute([$game['lijst_id']]);
+    $woorden = $stmt->fetchAll();
+    if (count($woorden) < $game['max_rondes']) { echo json_encode(['fout' => 'Te weinig woorden']); exit; }
+
+    $nieuwe_code = strtoupper(substr(md5(uniqid()), 0, 6));
+    try {
+        $pdo->prepare('INSERT INTO multiplayer_games (code, speler1_id, lijst_id, max_rondes, modus) VALUES (?,?,?,?,?)')
+            ->execute([$nieuwe_code, $user_id, $game['lijst_id'], $game['max_rondes'], $modus]);
+        $new_id = $pdo->lastInsertId();
+        $wstmt = $pdo->prepare('INSERT INTO multiplayer_woorden (game_id, volgorde, woord_id) VALUES (?,?,?)');
+        foreach ($woorden as $i => $w) { $wstmt->execute([$new_id, $i + 1, $w['id']]); }
+    } catch (PDOException $e) {
+        echo json_encode(['fout' => 'Kon rematch niet aanmaken']); exit;
+    }
+    echo json_encode(['code' => $nieuwe_code]);
     exit;
 }
 
