@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$game_id, $i + 1, $w['id']]);
             }
 
-            header('Location: spel.php?game=' . $code);
+            header('Location: pregame.php?game=' . $code);
             exit;
         }
 
@@ -52,9 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($game['speler1_id'] == $_SESSION['user_id']) {
             $fout = 'Je kunt niet je eigen spel joinen.';
         } else {
-            $pdo->prepare('UPDATE multiplayer_games SET speler2_id=?, status="bezig" WHERE id=?')
+            $pdo->prepare('UPDATE multiplayer_games SET speler2_id=?, status="lobby" WHERE id=?')
                 ->execute([$_SESSION['user_id'], $game['id']]);
-            header('Location: spel.php?game=' . $code);
+            header('Location: pregame.php?game=' . $code);
             exit;
         }
     }
@@ -66,7 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multiplayer – Taaltrainer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>:root { --bs-font-sans-serif: 'Inter', system-ui, sans-serif; }</style>
     <style>
         body { background-color: #F3F4F6; }
         .navbar { background-color: #2563EB; }

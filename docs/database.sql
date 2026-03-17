@@ -94,6 +94,65 @@ INSERT INTO woorden (woordenlijst_id, woord, vertaling) VALUES
 (1, 'varken', 'pig'),
 (1, 'olifant', 'elephant');
 
+-- =============================================
+-- Multiplayer tabellen
+-- =============================================
+
+CREATE TABLE multiplayer_games (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    code            VARCHAR(6) NOT NULL UNIQUE,
+    speler1_id      INT NOT NULL,
+    speler2_id      INT DEFAULT NULL,
+    lijst_id        INT NOT NULL,
+    max_rondes      INT NOT NULL DEFAULT 5,
+    status          ENUM('wachten','lobby','bezig','klaar') NOT NULL DEFAULT 'wachten',
+    ronde           INT NOT NULL DEFAULT 1,
+    score_speler1   INT NOT NULL DEFAULT 0,
+    score_speler2   INT NOT NULL DEFAULT 0,
+    speler1_klaar   TINYINT NOT NULL DEFAULT 0,
+    speler2_klaar   TINYINT NOT NULL DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (speler1_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (lijst_id)   REFERENCES woordenlijsten(id) ON DELETE CASCADE
+);
+
+CREATE TABLE multiplayer_woorden (
+    id       INT AUTO_INCREMENT PRIMARY KEY,
+    game_id  INT NOT NULL,
+    volgorde INT NOT NULL,
+    woord_id INT NOT NULL,
+    FOREIGN KEY (game_id)  REFERENCES multiplayer_games(id) ON DELETE CASCADE,
+    FOREIGN KEY (woord_id) REFERENCES woorden(id) ON DELETE CASCADE
+);
+
+CREATE TABLE multiplayer_antwoorden (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    game_id      INT NOT NULL,
+    ronde        INT NOT NULL,
+    user_id      INT NOT NULL,
+    antwoord     VARCHAR(200) NOT NULL DEFAULT '',
+    correct      TINYINT NOT NULL DEFAULT 0,
+    ingediend_op DATETIME DEFAULT NOW(),
+    UNIQUE KEY uniq_antwoord (game_id, ronde, user_id),
+    FOREIGN KEY (game_id) REFERENCES multiplayer_games(id) ON DELETE CASCADE
+);
+
+CREATE TABLE multiplayer_chat (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    game_id      INT NOT NULL,
+    user_id      INT NOT NULL,
+    bericht      VARCHAR(300) NOT NULL,
+    verzonden_op DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES multiplayer_games(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Als je een bestaande database bijwerkt (in plaats van opnieuw aanmaken):
+-- ALTER TABLE multiplayer_games ADD COLUMN speler1_klaar TINYINT NOT NULL DEFAULT 0;
+-- ALTER TABLE multiplayer_games ADD COLUMN speler2_klaar TINYINT NOT NULL DEFAULT 0;
+-- ALTER TABLE multiplayer_games MODIFY COLUMN status ENUM('wachten','lobby','bezig','klaar') NOT NULL DEFAULT 'wachten';
+-- (Bovenstaande tabel multiplayer_chat aanmaken met CREATE TABLE hierboven)
+
 -- Woorden lijst 2: Kleuren
 INSERT INTO woorden (woordenlijst_id, woord, vertaling) VALUES
 (2, 'rood', 'red'),

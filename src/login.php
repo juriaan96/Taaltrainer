@@ -38,7 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inloggen – Taaltrainer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>:root { --bs-font-sans-serif: 'Inter', system-ui, sans-serif; }</style>
     <style>
         body {
             background-color: #F3F4F6;
@@ -112,6 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="btn btn-primary w-100">Inloggen</button>
         </form>
+
+        <hr class="my-3">
+        <p class="text-center text-muted small mb-0">
+            Nog geen account? <a href="registreren.php">Registreren</a>
+        </p>
     </div>
 </body>
 </html>

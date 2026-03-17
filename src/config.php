@@ -1,4 +1,6 @@
 <?php
+define('ANTHROPIC_API_KEY', 'YOUR_API_KEY_HERE'); // Vervang door jouw API key: https://console.anthropic.com
+
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'taaltrainer');
 define('DB_USER', 'root');
