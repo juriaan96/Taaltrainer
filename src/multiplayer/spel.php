@@ -172,47 +172,84 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
     let huidigeRonde  = 0;
     let beantwoord    = false;
     let pollingActief = true;
+    let huidigeModus  = 'invullen';
     let tegAntwoordDetectedAt = null;
     let countdownInterval     = null;
+    let vorigeEmoji   = null;
 
+    // ── Timeout (tegenstander al klaar, jij nog niet) ─────────────────────────
     async function tijdVoorbij() {
         if (beantwoord) return;
         beantwoord = true;
         document.getElementById('controleer-btn').disabled = true;
+        disableKeuzeKnoppen();
         try {
-            const resp = await fetch(`api.php?actie=timeout&game=${GAME_CODE}`, { method: 'POST' });
-            const data = await resp.json();
+            const r    = await fetch(`api.php?actie=timeout&game=${GAME_CODE}`, { method: 'POST' });
+            const data = await r.json();
             verwerkStatus(data);
         } catch(e) {}
     }
 
+    // ── Polling ───────────────────────────────────────────────────────────────
     async function pollStatus() {
         if (!pollingActief) return;
         try {
-            const resp = await fetch(`api.php?actie=status&game=${GAME_CODE}`);
-            const data = await resp.json();
+            const r    = await fetch(`api.php?actie=status&game=${GAME_CODE}`);
+            const data = await r.json();
             verwerkStatus(data);
         } catch(e) {}
     }
 
+    // ── Antwoord sturen (invullen) ────────────────────────────────────────────
     async function stuurAntwoord() {
         const antwoord = document.getElementById('antwoord-input').value.trim();
         if (!antwoord || beantwoord) return;
+        verzendAntwoord(antwoord);
+    }
+
+    // ── Keuze sturen (meerkeuze) ──────────────────────────────────────────────
+    async function stuurKeuze(optie) {
+        if (beantwoord) return;
+        disableKeuzeKnoppen();
+        verzendAntwoord(optie);
+    }
+
+    async function verzendAntwoord(antwoord) {
         beantwoord = true;
-
         document.getElementById('controleer-btn').disabled = true;
-
-        const formData = new FormData();
-        formData.append('game', GAME_CODE);
-        formData.append('antwoord', antwoord);
-
+        const fd = new FormData();
+        fd.append('game', GAME_CODE);
+        fd.append('antwoord', antwoord);
         try {
-            const resp = await fetch('api.php?actie=antwoord', { method: 'POST', body: formData });
-            const data = await resp.json();
+            const r    = await fetch('api.php?actie=antwoord', { method: 'POST', body: fd });
+            const data = await r.json();
             verwerkStatus(data);
         } catch(e) {}
     }
 
+    // ── Emoji sturen ──────────────────────────────────────────────────────────
+    async function stuurEmoji(emoji) {
+        await fetch(`api.php?actie=emoji&game=${GAME_CODE}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'emoji=' + encodeURIComponent(emoji),
+        });
+    }
+
+    // ── Rematch ───────────────────────────────────────────────────────────────
+    async function startRematch() {
+        document.getElementById('rematch-btn').style.display  = 'none';
+        document.getElementById('rematch-wacht').style.display = 'block';
+        try {
+            const r    = await fetch(`api.php?actie=rematch&game=${GAME_CODE}`, { method: 'POST' });
+            const data = await r.json();
+            if (data.code) window.location.href = `pregame.php?game=${data.code}`;
+        } catch(e) {
+            document.getElementById('rematch-wacht').textContent = 'Rematch niet mogelijk.';
+        }
+    }
+
+    // ── Status verwerken ──────────────────────────────────────────────────────
     function verwerkStatus(data) {
         if (data.fase === 'wachten' || data.fase === 'pregame') {
             window.location.href = `pregame.php?game=${GAME_CODE}`;
@@ -228,49 +265,68 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
             document.getElementById('eindresultaat-tekst').textContent = tekst;
             document.getElementById('eindscore').textContent =
                 `${data.score_jij} – ${data.score_tegenstander} (${data.tegenstander_naam})`;
+            // Rematch knop alleen voor speler 1
+            if (data.jij_is_speler1) {
+                document.getElementById('rematch-btn').style.display = 'block';
+            }
             return;
         }
 
         if (data.fase === 'bezig') {
             toonFase('bezig');
+            huidigeModus = data.modus ?? 'invullen';
 
-            // Scores
-            document.getElementById('score-jij').textContent  = data.score_jij;
-            document.getElementById('score-teg').textContent  = data.score_tegenstander;
-            document.getElementById('teg-naam').textContent   = data.tegenstander_naam;
+            document.getElementById('score-jij').textContent   = data.score_jij;
+            document.getElementById('score-teg').textContent   = data.score_tegenstander;
+            document.getElementById('teg-naam').textContent    = data.tegenstander_naam;
             document.getElementById('ronde-label').textContent = `${data.ronde}/${data.max_rondes}`;
+            document.getElementById('emoji-bar').style.display = 'block';
 
-            // Nieuwe ronde? Reset UI
+            // Emoji van tegenstander
+            if (data.emoji_ontvangen && data.emoji_ontvangen !== vorigeEmoji) {
+                vorigeEmoji = data.emoji_ontvangen;
+                const el = document.getElementById('emoji-ontvangen');
+                el.textContent = data.emoji_ontvangen;
+                el.style.opacity = '1';
+                setTimeout(() => { el.style.opacity = '0'; setTimeout(() => { el.textContent = ''; }, 300); }, 2000);
+            }
+
+            // Nieuwe ronde → reset UI
             if (data.ronde !== huidigeRonde) {
                 huidigeRonde = data.ronde;
                 beantwoord   = false;
                 tegAntwoordDetectedAt = null;
                 clearInterval(countdownInterval);
                 countdownInterval = null;
-                document.getElementById('woord-display').textContent = data.woord;
-                document.getElementById('antwoord-input').value      = '';
-                document.getElementById('controleer-btn').disabled   = false;
-                document.getElementById('input-vak').style.display    = 'block';
+                vorigeEmoji = null;
+
+                document.getElementById('woord-display').textContent  = data.woord;
                 document.getElementById('feedback-vak').style.display = 'none';
                 document.getElementById('teg-status').textContent     = '';
-                setTimeout(() => document.getElementById('antwoord-input').focus(), 50);
+
+                if (huidigeModus === 'meerkeuze') {
+                    document.getElementById('input-vak').style.display  = 'none';
+                    document.getElementById('keuze-vak').style.display  = 'grid';
+                    vulKeuzeKnoppen(data.opties ?? []);
+                } else {
+                    document.getElementById('input-vak').style.display  = 'block';
+                    document.getElementById('keuze-vak').style.display  = 'none';
+                    document.getElementById('antwoord-input').value     = '';
+                    document.getElementById('controleer-btn').disabled  = false;
+                    setTimeout(() => document.getElementById('antwoord-input').focus(), 50);
+                }
             }
 
-            // Tegenstander status + countdown
+            // Tegenstander-countdown
             const tegStatus = document.getElementById('teg-status');
             if (data.tegenstander_beantwoord && !data.jij_beantwoord) {
                 if (!tegAntwoordDetectedAt) {
                     tegAntwoordDetectedAt = Date.now();
                     clearInterval(countdownInterval);
                     countdownInterval = setInterval(() => {
-                        const seconden = Math.max(0, 3 - Math.floor((Date.now() - tegAntwoordDetectedAt) / 1000));
-                        document.getElementById('teg-status').textContent =
-                            '⚡ Tegenstander heeft geantwoord! Nog ' + seconden + 's';
-                        if (seconden <= 0) {
-                            clearInterval(countdownInterval);
-                            countdownInterval = null;
-                            tijdVoorbij();
-                        }
+                        const sec = Math.max(0, 3 - Math.floor((Date.now() - tegAntwoordDetectedAt) / 1000));
+                        tegStatus.textContent = '⚡ Tegenstander heeft geantwoord! Nog ' + sec + 's';
+                        if (sec <= 0) { clearInterval(countdownInterval); countdownInterval = null; tijdVoorbij(); }
                     }, 100);
                 }
             } else if (data.tegenstander_beantwoord) {
@@ -281,34 +337,63 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
                 tegStatus.textContent = '';
             }
 
-            // Feedback tonen na antwoord
+            // Feedback
             if (data.jij_beantwoord) {
-                document.getElementById('input-vak').style.display    = 'none';
+                document.getElementById('input-vak').style.display  = 'none';
+                document.getElementById('keuze-vak').style.display  = 'none';
                 document.getElementById('feedback-vak').style.display = 'block';
-                const fbEl = document.getElementById('feedback-bericht');
+                const fb = document.getElementById('feedback-bericht');
                 if (data.jij_correct) {
-                    fbEl.className = 'feedback-vak feedback-correct';
-                    fbEl.textContent = '✓ Goed! ' + (data.correcte_antwoord ?? '');
+                    fb.className = 'feedback-vak feedback-correct';
+                    fb.textContent = '✓ Goed! ' + (data.correcte_antwoord ?? '');
                 } else {
-                    fbEl.className = 'feedback-vak feedback-fout';
-                    fbEl.textContent = '✗ Fout – juist: ' + (data.correcte_antwoord ?? '');
+                    fb.className = 'feedback-vak feedback-fout';
+                    fb.textContent = '✗ Fout – juist: ' + (data.correcte_antwoord ?? '');
                 }
+                // Kleur de keuze-knoppen na-achteraf bij meerkeuze
+                if (huidigeModus === 'meerkeuze') kleurKeuzeKnoppen(data);
             }
         }
     }
 
-    function toonFase(fase) {
-        ['wachten','bezig','klaar'].forEach(f => {
-            document.getElementById('fase-' + f).style.display = f === fase ? 'block' : 'none';
-        });
+    function vulKeuzeKnoppen(opties) {
+        const vak = document.getElementById('keuze-vak');
+        vak.innerHTML = opties.map(o =>
+            `<button class="btn btn-keuze w-100" onclick="stuurKeuze(${JSON.stringify(o)})">${escHtml(o)}</button>`
+        ).join('');
     }
 
-    // Enter = antwoord indienen
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Enter') stuurAntwoord();
-    });
+    function disableKeuzeKnoppen() {
+        document.querySelectorAll('#keuze-vak .btn-keuze').forEach(b => b.disabled = true);
+    }
 
-    // Polling
+    function kleurKeuzeKnoppen(data) {
+        document.querySelectorAll('#keuze-vak .btn-keuze, #keuze-vak .btn-keuze-correct, #keuze-vak .btn-keuze-fout')
+            .forEach(b => {
+                const tekst = b.textContent.trim();
+                if (tekst === (data.correcte_antwoord ?? '')) {
+                    b.className = 'btn btn-keuze-correct w-100 disabled';
+                    b.textContent += ' ✓';
+                } else if (tekst === (data.jij_antwoord_tekst ?? '') && !data.jij_correct) {
+                    b.className = 'btn btn-keuze-fout w-100 disabled';
+                    b.textContent += ' ✗';
+                } else {
+                    b.disabled = true;
+                }
+            });
+    }
+
+    function toonFase(fase) {
+        ['wachten','bezig','klaar'].forEach(f =>
+            document.getElementById('fase-' + f).style.display = f === fase ? 'block' : 'none'
+        );
+    }
+
+    function escHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') stuurAntwoord(); });
     setInterval(pollStatus, 800);
     pollStatus();
     </script>
