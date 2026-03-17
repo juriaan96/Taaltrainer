@@ -23,6 +23,13 @@ if (in_array($game['status'], ['bezig', 'klaar'])) {
     header('Location: spel.php?game=' . $code);
     exit;
 }
+
+// Controleer of DB-migratie uitgevoerd is
+$migratieNodig = [];
+try { $pdo->query('SELECT speler1_klaar FROM multiplayer_games LIMIT 1'); }
+catch (PDOException $e) { $migratieNodig[] = 'speler1_klaar / speler2_klaar kolommen'; }
+try { $pdo->query('SELECT id FROM multiplayer_chat LIMIT 1'); }
+catch (PDOException $e) { $migratieNodig[] = 'multiplayer_chat tabel'; }
 ?>
 <!DOCTYPE html>
 <html lang="nl">
@@ -64,6 +71,26 @@ if (in_array($game['status'], ['bezig', 'klaar'])) {
 
     <div class="lobby-wrap">
         <div class="lobby-inner">
+
+            <?php if (!empty($migratieNodig)): ?>
+            <div class="alert alert-warning mb-3">
+                <strong>⚠️ Database-migratie nodig</strong> — ontbrekend: <?= implode(', ', $migratieNodig) ?><br>
+                Voer dit uit in <strong>phpMyAdmin → taaltrainer → SQL</strong>:
+                <pre class="mt-2 mb-0 p-2 bg-white rounded" style="font-size:0.8rem">ALTER TABLE multiplayer_games
+  ADD COLUMN speler1_klaar TINYINT NOT NULL DEFAULT 0,
+  ADD COLUMN speler2_klaar TINYINT NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS multiplayer_chat (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    game_id INT NOT NULL,
+    user_id INT NOT NULL,
+    bericht VARCHAR(300) NOT NULL,
+    verzonden_op DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES multiplayer_games(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);</pre>
+            </div>
+            <?php endif; ?>
 
             <!-- Spelcode -->
             <div class="card p-4 mb-3 text-center">
@@ -214,7 +241,9 @@ if (in_array($game['status'], ['bezig', 'klaar'])) {
     }
 
     async function toggleKlaar() {
-        await fetch(`api.php?actie=klaar&game=${GAME_CODE}`, { method: 'POST' });
+        const r    = await fetch(`api.php?actie=klaar&game=${GAME_CODE}`, { method: 'POST' });
+        const data = await r.json();
+        if (data.fout) alert('Fout: ' + data.fout);
     }
 
     function kopieerCode() {

@@ -69,6 +69,16 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
         .feedback-wacht   { background: #EFF6FF; color: #2563EB; border: 2px solid #2563EB; }
         .teg-status { font-size: 0.85rem; text-align: center; margin-top: 0.5rem; color: #6B7280; min-height: 1.25rem; }
         .code-badge { font-family: monospace; letter-spacing: 0.2em; background: #EFF6FF; color: #2563EB; padding: 0.2rem 0.6rem; border-radius: 6px; font-weight: 700; }
+        /* Meerkeuze */
+        .btn-keuze { background:#fff; border:2px solid #E5E7EB; color:#1F2937; border-radius:10px; padding:0.7rem 1rem; text-align:left; font-weight:500; transition:border-color 0.15s,background 0.15s; }
+        .btn-keuze:hover { border-color:#7C3AED; background:#F5F3FF; color:#1F2937; }
+        .btn-keuze-correct { border-color:#16A34A !important; background:#F0FDF4 !important; color:#15803D !important; font-weight:700 !important; }
+        .btn-keuze-fout    { border-color:#DC2626 !important; background:#FEF2F2 !important; color:#B91C1C !important; }
+        /* Emoji */
+        .emoji-bar { display:none; text-align:center; margin-top:0.75rem; }
+        .emoji-btn { background:none; border:none; font-size:1.4rem; cursor:pointer; opacity:0.7; transition:opacity 0.15s,transform 0.15s; padding:0.2rem 0.4rem; }
+        .emoji-btn:hover { opacity:1; transform:scale(1.2); }
+        .emoji-ontvangen { font-size:1.8rem; min-height:2rem; text-align:center; transition:opacity 0.3s; }
     </style>
 </head>
 <body>
@@ -103,14 +113,16 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
                     <div class="speler-score">
                         <div class="speler-naam" id="teg-naam">...</div>
                         <div class="speler-getal" id="score-teg">0</div>
+                        <div class="emoji-ontvangen" id="emoji-ontvangen"></div>
                     </div>
                 </div>
 
                 <!-- Woord -->
                 <div class="woord-display mb-3" id="woord-display">...</div>
 
-                <!-- Antwoord / feedback blok (vaste hoogte) -->
+                <!-- Antwoord / feedback blok -->
                 <div class="antwoord-blok">
+                    <!-- Invullen -->
                     <div id="input-vak">
                         <input type="text" id="antwoord-input" class="form-control form-control-lg text-center mb-2"
                                placeholder="Vertaal hier..." autocomplete="off">
@@ -118,10 +130,20 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
                                 style="background:#2563EB;border-color:#2563EB"
                                 onclick="stuurAntwoord()">Controleer</button>
                     </div>
+                    <!-- Meerkeuze -->
+                    <div id="keuze-vak" class="d-grid gap-2" style="display:none !important"></div>
+                    <!-- Feedback -->
                     <div id="feedback-vak" style="display:none">
                         <div class="feedback-vak" id="feedback-bericht"></div>
                     </div>
                     <div class="teg-status" id="teg-status"></div>
+                </div>
+                <!-- Emoji-bar -->
+                <div class="emoji-bar" id="emoji-bar">
+                    <button class="emoji-btn" onclick="stuurEmoji('👍')">👍</button>
+                    <button class="emoji-btn" onclick="stuurEmoji('😅')">😅</button>
+                    <button class="emoji-btn" onclick="stuurEmoji('🎉')">🎉</button>
+                    <button class="emoji-btn" onclick="stuurEmoji('😤')">😤</button>
                 </div>
             </div>
 
@@ -130,7 +152,13 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
                 <div id="eindresultaat-emoji" style="font-size:3rem"></div>
                 <div class="fw-bold fs-4 mt-2" id="eindresultaat-tekst"></div>
                 <div class="mt-2 text-muted" id="eindscore"></div>
-                <a href="lobby.php" class="btn btn-primary mt-4 w-100" style="background:#2563EB;border-color:#2563EB">
+                <button id="rematch-btn" class="btn btn-success mt-4 w-100 fw-bold" onclick="startRematch()" style="display:none">
+                    🔁 Rematch – zelfde lijst &amp; modus
+                </button>
+                <div id="rematch-wacht" class="text-muted small mt-2" style="display:none">
+                    ⏳ Wachten op rematch van tegenstander...
+                </div>
+                <a href="lobby.php" class="btn btn-primary mt-2 w-100" style="background:#2563EB;border-color:#2563EB">
                     Nieuw spel
                 </a>
                 <a href="../index.php" class="btn btn-outline-secondary mt-2 w-100">Terug naar app</a>
@@ -186,8 +214,8 @@ if (in_array($game['status'], ['wachten', 'lobby'])) { header('Location: pregame
     }
 
     function verwerkStatus(data) {
-        if (data.fase === 'wachten') {
-            toonFase('wachten');
+        if (data.fase === 'wachten' || data.fase === 'pregame') {
+            window.location.href = `pregame.php?game=${GAME_CODE}`;
             return;
         }
 

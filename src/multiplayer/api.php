@@ -63,7 +63,9 @@ function spelStatus(PDO $pdo, array $game, int $user_id): array {
     $teg_naam   = $game['teg_naam'] ?? '...';
 
     if ($game['status'] === 'wachten') {
-        return ['fase' => 'wachten', 'code' => $game['code']];
+        // Als speler2 al aanwezig is maar nog niet gestart → terug naar pregame
+        $fase = $game['speler2_id'] ? 'pregame' : 'wachten';
+        return ['fase' => $fase, 'code' => $game['code']];
     }
 
     if ($game['status'] === 'klaar') {
@@ -102,7 +104,9 @@ function spelStatus(PDO $pdo, array $game, int $user_id): array {
         }
     }
 
-    return [
+    $modus = $game['modus'] ?? 'invullen';
+
+    $result = [
         'fase'                    => 'bezig',
         'ronde'                   => $game['ronde'],
         'max_rondes'              => $game['max_rondes'],
@@ -116,7 +120,27 @@ function spelStatus(PDO $pdo, array $game, int $user_id): array {
         'correcte_antwoord'       => $mijn_ant ? $woord['vertaling'] : null,
         'tegenstander_beantwoord' => $teg_ant,
         'tegenstander_antwoord_op'=> $teg_antwoord_op,
+        'modus'                   => $modus,
     ];
+
+    // Meerkeuze: genereer 4 opties deterministisch (zelfde voor beide spelers)
+    if ($modus === 'meerkeuze') {
+        $alle = $pdo->prepare('SELECT w.vertaling FROM multiplayer_woorden mw
+                               JOIN woorden w ON mw.woord_id = w.id WHERE mw.game_id = ?');
+        $alle->execute([$game['id']]);
+        $alle_vertalingen = array_column($alle->fetchAll(), 'vertaling');
+
+        $foute = array_values(array_filter($alle_vertalingen, fn($v) => $v !== ($woord['vertaling'] ?? '')));
+        srand($game['id'] * 1000 + $game['ronde']); // deterministisch: zelfde opties voor beide spelers
+        shuffle($foute);
+        $foute  = array_slice($foute, 0, 3);
+        $opties = array_merge([$woord['vertaling'] ?? ''], $foute);
+        shuffle($opties);
+        srand();
+        $result['opties'] = $opties;
+    }
+
+    return $result;
 }
 
 // ── Game ophalen ──────────────────────────────────────────────────────────────
@@ -198,24 +222,35 @@ if ($actie === 'lobby_status') {
     if (!$game) { echo json_encode(['fout' => 'Spel niet gevonden']); exit; }
 
     // Spel is al gestart
-    if (in_array($game['status'], ['bezig', 'klaar'])) {
+    if ($game['status'] === 'bezig' || $game['status'] === 'klaar') {
         echo json_encode(['fase' => 'start']); exit;
     }
 
-    $stmt = $pdo->prepare('SELECT u.username, c.bericht, DATE_FORMAT(c.verzonden_op, "%H:%i") AS tijd
-                           FROM multiplayer_chat c JOIN users u ON u.id = c.user_id
-                           WHERE c.game_id = ? ORDER BY c.verzonden_op ASC');
-    $stmt->execute([$game['id']]);
-    $berichten = $stmt->fetchAll();
+    // Fase bepalen: speler2 aanwezig = lobby, anders wachten
+    $fase = $game['speler2_id'] ? 'lobby' : 'wachten';
+
+    $berichten = [];
+    if ($fase === 'lobby') {
+        try {
+            $stmt = $pdo->prepare('SELECT u.username, c.bericht, DATE_FORMAT(c.verzonden_op, "%H:%i") AS tijd
+                                   FROM multiplayer_chat c JOIN users u ON u.id = c.user_id
+                                   WHERE c.game_id = ? ORDER BY c.verzonden_op ASC');
+            $stmt->execute([$game['id']]);
+            $berichten = $stmt->fetchAll();
+        } catch (PDOException $e) {
+            // multiplayer_chat tabel bestaat nog niet – zie docs/database.sql voor migratie
+            $berichten = [];
+        }
+    }
 
     $is1 = ($game['speler1_id'] == $user_id);
     echo json_encode([
-        'fase'          => $game['status'],   // 'wachten' of 'lobby'
+        'fase'          => $fase,
         'code'          => $game['code'],
-        'speler1_naam'  => $game['speler1_naam'],
-        'speler2_naam'  => $game['speler2_naam'],
-        'speler1_klaar' => (bool)$game['speler1_klaar'],
-        'speler2_klaar' => (bool)$game['speler2_klaar'],
+        'speler1_naam'  => $game['speler1_naam'] ?? null,
+        'speler2_naam'  => $game['speler2_naam'] ?? null,
+        'speler1_klaar' => (bool)($game['speler1_klaar'] ?? false),
+        'speler2_klaar' => (bool)($game['speler2_klaar'] ?? false),
         'jij_bent'      => $is1 ? 1 : 2,
         'berichten'     => $berichten,
     ]);
@@ -229,8 +264,12 @@ if ($actie === 'chat') {
     if (!$game || $bericht === '' || mb_strlen($bericht) > 300) {
         echo json_encode(['ok' => false]); exit;
     }
-    $pdo->prepare('INSERT INTO multiplayer_chat (game_id, user_id, bericht) VALUES (?, ?, ?)')
-        ->execute([$game['id'], $user_id, $bericht]);
+    try {
+        $pdo->prepare('INSERT INTO multiplayer_chat (game_id, user_id, bericht) VALUES (?, ?, ?)')
+            ->execute([$game['id'], $user_id, $bericht]);
+    } catch (PDOException $e) {
+        echo json_encode(['ok' => false, 'fout' => 'Chat-tabel ontbreekt – run de SQL-migratie.']); exit;
+    }
     echo json_encode(['ok' => true]);
     exit;
 }
@@ -238,7 +277,7 @@ if ($actie === 'chat') {
 // ── KLAAR MELDEN (toggle) ─────────────────────────────────────────────────────
 if ($actie === 'klaar') {
     $game = getGame($pdo, $code, $user_id);
-    if (!$game || $game['status'] !== 'lobby') {
+    if (!$game || $game['status'] !== 'wachten' || !$game['speler2_id']) {
         echo json_encode(['fout' => 'Ongeldige actie']); exit;
     }
 
@@ -247,12 +286,16 @@ if ($actie === 'klaar') {
     $huidig = $is1 ? (int)$game['speler1_klaar'] : (int)$game['speler2_klaar'];
     $nieuw  = $huidig ? 0 : 1;
 
-    $pdo->prepare("UPDATE multiplayer_games SET {$veld} = ? WHERE id = ?")
-        ->execute([$nieuw, $game['id']]);
+    try {
+        $pdo->prepare("UPDATE multiplayer_games SET {$veld} = ? WHERE id = ?")
+            ->execute([$nieuw, $game['id']]);
+    } catch (PDOException $e) {
+        echo json_encode(['fout' => 'Kolommen speler1_klaar/speler2_klaar ontbreken – run de SQL-migratie.']); exit;
+    }
 
     // Als beide klaar: game starten
     $game = getGame($pdo, $code, $user_id);
-    if ($game['speler1_klaar'] && $game['speler2_klaar']) {
+    if (!empty($game['speler1_klaar']) && !empty($game['speler2_klaar'])) {
         $pdo->prepare("UPDATE multiplayer_games SET status='bezig', speler1_klaar=0, speler2_klaar=0 WHERE id=?")
             ->execute([$game['id']]);
     }

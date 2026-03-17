@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($actie === 'aanmaken') {
         $lijst_id   = (int)$_POST['lijst_id'];
         $max_rondes = min(10, max(3, (int)($_POST['max_rondes'] ?? 5)));
+        $modus      = in_array($_POST['modus'] ?? '', ['invullen','meerkeuze']) ? $_POST['modus'] : 'invullen';
 
         // Genoeg woorden?
         $stmt = $pdo->prepare("SELECT id FROM woorden WHERE woordenlijst_id = ? ORDER BY RAND() LIMIT $max_rondes");
@@ -25,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $code = strtoupper(substr(md5(uniqid()), 0, 6));
 
-            $pdo->prepare('INSERT INTO multiplayer_games (code, speler1_id, lijst_id, max_rondes) VALUES (?,?,?,?)')
-                ->execute([$code, $_SESSION['user_id'], $lijst_id, $max_rondes]);
+            $pdo->prepare('INSERT INTO multiplayer_games (code, speler1_id, lijst_id, max_rondes, modus) VALUES (?,?,?,?,?)')
+                ->execute([$code, $_SESSION['user_id'], $lijst_id, $max_rondes, $modus]);
             $game_id = $pdo->lastInsertId();
 
             $stmt = $pdo->prepare('INSERT INTO multiplayer_woorden (game_id, volgorde, woord_id) VALUES (?,?,?)');
@@ -52,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($game['speler1_id'] == $_SESSION['user_id']) {
             $fout = 'Je kunt niet je eigen spel joinen.';
         } else {
-            $pdo->prepare('UPDATE multiplayer_games SET speler2_id=?, status="lobby" WHERE id=?')
+            $pdo->prepare('UPDATE multiplayer_games SET speler2_id=? WHERE id=?')
                 ->execute([$_SESSION['user_id'], $game['id']]);
             header('Location: pregame.php?game=' . $code);
             exit;
@@ -109,6 +110,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="5">5 rondes</option>
                                 <option value="7">7 rondes</option>
                                 <option value="10">10 rondes</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Speelmodus</label>
+                            <select name="modus" class="form-select">
+                                <option value="invullen">✏️ Invullen – typ de vertaling</option>
+                                <option value="meerkeuze">🔘 Meerkeuze – kies uit 4 opties</option>
                             </select>
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Spel aanmaken</button>
