@@ -78,7 +78,7 @@ $moeilijk = $moeilijk->fetchAll();
                                 </thead>
                                 <tbody>
                                     <?php foreach ($resultaten as $r): ?>
-                                        <?php $pct = round(($r['score'] / $r['totaal']) * 100); ?>
+                                        <?php $pct = $r['totaal'] > 0 ? round(($r['score'] / $r['totaal']) * 100) : 0; ?>
                                         <tr>
                                             <td class="fw-semibold"><?= htmlspecialchars($r['lijst_naam']) ?></td>
                                             <td class="text-center"><?= $r['score'] ?>/<?= $r['totaal'] ?></td>

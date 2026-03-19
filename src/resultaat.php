@@ -17,7 +17,7 @@ $score      = $resultaat['score'];
 $totaal     = $resultaat['totaal'];
 $fouten     = $resultaat['fouten'];
 $lijst_naam = $resultaat['lijst_naam'];
-$percentage = round(($score / $totaal) * 100);
+$percentage = $totaal > 0 ? round(($score / $totaal) * 100) : 0;
 
 if ($percentage >= 80) {
     $cijfer_kleur = 'text-success';

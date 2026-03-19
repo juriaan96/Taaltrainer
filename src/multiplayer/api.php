@@ -13,7 +13,8 @@ $code    = strtoupper(trim($_GET['game'] ?? $_POST['game'] ?? ''));
 function advanceerRondeAlsKlaar(PDO $pdo, array $game): void {
     if ($game['status'] !== 'bezig') return;
 
-    $pdo->beginTransaction();
+    try { $pdo->beginTransaction(); } catch (Exception $e) { return; }
+    try {
     $stmt = $pdo->prepare('SELECT * FROM multiplayer_games WHERE id = ? FOR UPDATE');
     $stmt->execute([$game['id']]);
     $game_locked = $stmt->fetch();
@@ -22,7 +23,9 @@ function advanceerRondeAlsKlaar(PDO $pdo, array $game): void {
         $pdo->commit(); return;
     }
 
-    $stmt2 = $pdo->prepare('SELECT user_id, correct, ingediend_op FROM multiplayer_antwoorden
+    $stmt2 = $pdo->prepare('SELECT user_id, correct, ingediend_op,
+                                   COALESCE(punten, 1.0) AS punten
+                            FROM multiplayer_antwoorden
                             WHERE game_id = ? AND ronde = ? ORDER BY ingediend_op ASC');
     $stmt2->execute([$game['id'], $game['ronde']]);
     $ants = $stmt2->fetchAll();
@@ -62,6 +65,7 @@ function advanceerRondeAlsKlaar(PDO $pdo, array $game): void {
         }
     }
     $pdo->commit();
+    } catch (Exception $e) { if ($pdo->inTransaction()) $pdo->rollBack(); }
 }
 
 // ── Spelstatus samenstellen ───────────────────────────────────────────────────
@@ -143,12 +147,12 @@ function spelStatus(PDO $pdo, array $game, int $user_id): array {
         $alle_vertalingen = array_column($alle->fetchAll(), 'vertaling');
 
         $foute = array_values(array_filter($alle_vertalingen, fn($v) => $v !== ($woord['vertaling'] ?? '')));
-        srand($game['id'] * 1000 + $game['ronde']); // deterministisch: zelfde opties voor beide spelers
+        mt_srand($game['id'] * 1000 + $game['ronde']); // deterministisch: zelfde opties voor beide spelers
         shuffle($foute);
         $foute  = array_slice($foute, 0, 3);
         $opties = array_merge([$woord['vertaling'] ?? ''], $foute);
         shuffle($opties);
-        srand();
+        mt_srand();
         $result['opties'] = $opties;
     }
 
